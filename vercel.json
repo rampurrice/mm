@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "builds": [
+    { "src": "copy-of-miller-mitra/package.json", "use": "@vercel/static-build" }
+  ],
+  "routes": [
+    { "src": "/(.*)", "dest": "/copy-of-miller-mitra/$1" }
+  ]
+}
