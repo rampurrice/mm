@@ -1,15 +1,15 @@
-
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { FrkRecord, DailyStockLog, RiceDeliveryRecord } from '../types';
+import { getSafely, isFrkRecord, isRiceDeliveryRecord } from '../utils';
 
 interface FrkManagementPageProps {
   currentSeason: string;
+  currentUser: string;
 }
 
 const FRK_BLENDING_RATIO = 0.01; // 1%
 
-const FrkManagementPage = ({ currentSeason }: FrkManagementPageProps) => {
+const FrkManagementPage = ({ currentSeason, currentUser }: FrkManagementPageProps) => {
     const [frkRecords, setFrkRecords] = useState<FrkRecord[]>([]);
     const [riceDeliveryRecords, setRiceDeliveryRecords] = useState<RiceDeliveryRecord[]>([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -18,29 +18,22 @@ const FrkManagementPage = ({ currentSeason }: FrkManagementPageProps) => {
 
     // Load data from localStorage
     useEffect(() => {
-        if (!currentSeason) return;
-        try {
-            const savedFrk = localStorage.getItem(`frkRecords_${currentSeason}`);
-            setFrkRecords(savedFrk ? JSON.parse(savedFrk) : []);
+        if (!currentSeason || !currentUser) return;
 
-            const savedDeliveries = localStorage.getItem(`riceDeliveryRecords_${currentSeason}`);
-            setRiceDeliveryRecords(savedDeliveries ? JSON.parse(savedDeliveries) : []);
-        } catch (error) {
-            console.error("Error loading data for FRK Management page:", error);
-            setFrkRecords([]);
-            setRiceDeliveryRecords([]);
-        }
-    }, [currentSeason]);
+        setFrkRecords(getSafely(`${currentUser}_frkRecords_${currentSeason}`, isFrkRecord));
+        setRiceDeliveryRecords(getSafely(`${currentUser}_riceDeliveryRecords_${currentSeason}`, isRiceDeliveryRecord));
+
+    }, [currentSeason, currentUser]);
 
     // Save data to localStorage
     useEffect(() => {
-        if (!currentSeason) return;
+        if (!currentSeason || !currentUser) return;
         try {
-            localStorage.setItem(`frkRecords_${currentSeason}`, JSON.stringify(frkRecords));
+            localStorage.setItem(`${currentUser}_frkRecords_${currentSeason}`, JSON.stringify(frkRecords));
         } catch (error) {
             console.error("Error saving FRK records:", error);
         }
-    }, [frkRecords, currentSeason]);
+    }, [frkRecords, currentSeason, currentUser]);
 
     const frkStock = useMemo(() => {
         const totalFrkPurchased = frkRecords.reduce((sum, rec) => sum + (rec.quantityQtls || 0), 0);

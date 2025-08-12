@@ -1,8 +1,13 @@
 
-import React, { useState } from 'react';
+
+
+import React, { useState, useEffect } from 'react';
+
 
 interface SettingsPageProps {
     installPrompt?: any; // This will hold the `beforeinstallprompt` event
+    currentUser: string | null;
+    currentSeason: string;
 }
 
 // --- Accordion Component ---
@@ -51,13 +56,30 @@ const AccordionItem = ({ title, icon, children, isOpen, onToggle }: AccordionIte
 
 // --- SOP Guide Content ---
 const SopGuide = () => {
-    const [openAccordion, setOpenAccordion] = useState<string | null>('step1');
+    const [openAccordion, setOpenAccordion] = useState<string | null>('step0');
 
     const toggleAccordion = (id: string) => {
         setOpenAccordion(openAccordion === id ? null : id);
     };
 
     const sopSteps = [
+        {
+            id: 'step0',
+            title: 'Step 0: Create Your Local Profile & Log In',
+            icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>,
+            content: (
+                 <>
+                    <p>The first time you use the app, create a local profile. This profile is stored ONLY on your device and keeps your data separate from other users on the same computer.</p>
+                    <ol>
+                        <li>On the login screen, choose <strong>'Create a new profile'</strong>.</li>
+                        <li>Enter a username and password. You will then be shown a 12-word recovery phrase.</li>
+                        <li><strong>Write down this phrase and save it somewhere safe.</strong> It is the ONLY way to recover your account if you forget your password.</li>
+                        <li>After creating your profile, log in with your new credentials.</li>
+                        <li>Select the milling season you want to work in. You can change this at any time from the header.</li>
+                    </ol>
+                </>
+            )
+        },
         {
             id: 'step1',
             title: 'Step 1: Upload Release Order (RO)',
@@ -193,26 +215,141 @@ const SopGuide = () => {
     );
 };
 
-// --- Settings and Data Content ---
-const SettingsContent = ({ installPrompt }: { installPrompt: any }) => {
-    const [issueMessage, setIssueMessage] = useState('');
-    const [dataMessage, setDataMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+// --- App Update Component ---
+const UpdateManager = () => {
+    const currentVersion = '1.1.0';
+    const [latestVersionInfo, setLatestVersionInfo] = useState<{ version: string; releaseNotes: string; downloadUrl: string; } | null>(null);
+    const [status, setStatus] = useState<'checking' | 'up-to-date' | 'available' | 'error'>('checking');
 
-    const handleReportIssue = (e: React.FormEvent) => {
+    useEffect(() => {
+        const checkForUpdates = async () => {
+            try {
+                // In a real app, this URL would point to a file on a server/gist.
+                // Using a local file for demonstration.
+                const response = await fetch('/version.json');
+                if (!response.ok) throw new Error('Could not fetch version info');
+                const data = await response.json();
+
+                // Simple version comparison (e.g., "1.2.0" > "1.1.0")
+                if (data.version > currentVersion) {
+                    setLatestVersionInfo(data);
+                    setStatus('available');
+                } else {
+                    setStatus('up-to-date');
+                }
+            } catch (error) {
+                console.error("Update check failed:", error);
+                setStatus('error');
+            }
+        };
+
+        checkForUpdates();
+    }, [currentVersion]);
+
+    return (
+         <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
+            <h2 className="text-xl font-bold text-slate-800">Application Updates</h2>
+            <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between">
+                <div>
+                    <p className="text-sm text-slate-600">Your Current Version</p>
+                    <p className="text-lg font-bold text-slate-800">v{currentVersion}</p>
+                </div>
+                {status === 'checking' && <p className="text-sm font-medium text-slate-500">Checking for updates...</p>}
+                {status === 'up-to-date' && <div className="text-sm font-medium text-green-600 bg-green-100 px-3 py-1 rounded-full">You are up to date!</div>}
+                {status === 'error' && <div className="text-sm font-medium text-red-600 bg-red-100 px-3 py-1 rounded-full">Update check failed</div>}
+            </div>
+
+            {status === 'available' && latestVersionInfo && (
+                <div className="mt-4 p-4 bg-blue-50 border-l-4 border-blue-500 rounded-r-lg animate-fade-in">
+                    <h3 className="text-lg font-bold text-blue-800">New Version Available: v{latestVersionInfo.version}</h3>
+                    <div className="mt-2">
+                        <h4 className="font-semibold text-slate-700">Release Notes:</h4>
+                        <pre className="mt-1 p-3 bg-slate-100 rounded-md text-sm text-slate-600 whitespace-pre-wrap font-sans">{latestVersionInfo.releaseNotes}</pre>
+                    </div>
+                    <p className="mt-4 text-sm text-amber-800 bg-amber-100 p-2 rounded-md border border-amber-200">
+                        <strong>Important:</strong> Before updating, it's always a good idea to use the 'Backup All Data' tool just in case. Your data should be safe, but this provides peace of mind.
+                    </p>
+                    <a 
+                        href={latestVersionInfo.downloadUrl}
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="mt-4 inline-block w-full text-center px-6 py-3 font-semibold text-white bg-blue-600 rounded-lg shadow-sm hover:bg-blue-700"
+                    >
+                        Download New Version
+                    </a>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// --- Settings and Data Content ---
+const SettingsContent = ({ installPrompt, currentUser, currentSeason }: { installPrompt: any, currentUser: string | null, currentSeason: string }) => {
+    const [issueMessage, setIssueMessage] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [submitStatus, setSubmitStatus] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+    const [dataMessage, setDataMessage] = useState<{ type: 'success' | 'error' | 'info', text: string } | null>(null);
+    
+    // Restore Modal State
+    const [isRestoreModalOpen, setIsRestoreModalOpen] = useState(false);
+    const [backupPreview, setBackupPreview] = useState<{ profiles: string[], seasonsByProfile: Record<string, string[]> } | null>(null);
+    const [backupDataToRestore, setBackupDataToRestore] = useState<Record<string, string> | null>(null);
+    const [restoreStrategy, setRestoreStrategy] = useState<'merge' | 'replace'>('merge');
+
+    const WEB3FORMS_ACCESS_KEY = '42a68bd7-b1ec-4d92-96d5-3a7928688135';
+
+    const handleReportIssue = async (e: React.FormEvent) => {
         e.preventDefault();
+        setSubmitStatus(null);
         if (!issueMessage.trim()) {
-            alert('Please describe the issue before sending.');
+            setSubmitStatus({ type: 'error', text: 'Please describe the issue before sending.' });
             return;
         }
 
-        const subject = encodeURIComponent('Miller Mitra - User Feedback/Issue Report');
-        const body = encodeURIComponent(issueMessage);
-        const mailtoLink = `mailto:rampurrice@gmail.com?subject=${subject}&body=${body}`;
-        
-        window.location.href = mailtoLink;
+        if (!WEB3FORMS_ACCESS_KEY) {
+            setSubmitStatus({ type: 'error', text: 'Issue reporting is not configured. Please contact the app administrator.' });
+            return;
+        }
+
+        setIsSubmitting(true);
+
+        try {
+            const formData = new FormData();
+            formData.append("access_key", WEB3FORMS_ACCESS_KEY);
+            formData.append("subject", `Miller Mitra - Issue Report from ${currentUser}`);
+            formData.append("from_name", "Miller Mitra App");
+            formData.append("message", issueMessage);
+            
+            // Add diagnostic info
+            formData.append("User", currentUser || 'Not Logged In');
+            formData.append("Season", currentSeason);
+            formData.append("Timestamp", new Date().toISOString());
+            formData.append("URL", window.location.href);
+            formData.append("User Agent", navigator.userAgent);
+            
+            const res = await fetch("https://api.web3forms.com/submit", {
+                method: "POST",
+                body: formData,
+            });
+
+            const json = await res.json();
+
+            if (json.success) {
+                setSubmitStatus({ type: 'success', text: 'Thank you! Your report has been sent successfully.' });
+                setIssueMessage(''); // Clear the form
+            } else {
+                console.error("Submission Error:", json);
+                setSubmitStatus({ type: 'error', text: `Failed to send report: ${json.message}` });
+            }
+        } catch (error) {
+            console.error("Network Error:", error);
+            setSubmitStatus({ type: 'error', text: 'A network error occurred. Please check your connection and try again.' });
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
-    const showDataMessage = (type: 'success' | 'error', text: string) => {
+    const showDataMessage = (type: 'success' | 'error' | 'info', text: string) => {
         setDataMessage({ type, text });
         setTimeout(() => setDataMessage(null), 5000);
     };
@@ -220,11 +357,12 @@ const SettingsContent = ({ installPrompt }: { installPrompt: any }) => {
     const handleBackupData = () => {
         try {
             const backupData: Record<string, string> = {};
-            const prefixes = ['releaseOrders_', 'liftingRecords_', 'dailyStockLogs_', 'riceDeliveryRecords_', 'cmrDepositOrders_', 'frkRecords_'];
+            const keyPattern = /^[a-zA-Z0-9]+_([a-zA-Z]+)_(20\d{2}-20\d{2})$/;
+            const profileKey = 'userProfiles';
 
             for (let i = 0; i < localStorage.length; i++) {
                 const key = localStorage.key(i);
-                if (key && prefixes.some(p => key.startsWith(p))) {
+                if (key && (keyPattern.test(key) || key === profileKey)) {
                     backupData[key] = localStorage.getItem(key)!;
                 }
             }
@@ -241,13 +379,13 @@ const SettingsContent = ({ installPrompt }: { installPrompt: any }) => {
             const a = document.createElement('a');
             a.href = url;
             const date = new Date().toISOString().split('T')[0];
-            a.download = `miller-mitra-backup-${date}.json`;
+            a.download = `miller-mitra-backup-all-profiles-${date}.json`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
             
-            showDataMessage('success', 'Data backup downloaded successfully!');
+            showDataMessage('success', 'Full application data backup (all profiles) downloaded successfully!');
 
         } catch (error) {
             console.error('Backup failed:', error);
@@ -260,46 +398,66 @@ const SettingsContent = ({ installPrompt }: { installPrompt: any }) => {
         if (!file) return;
 
         const reader = new FileReader();
+
+        reader.onerror = () => {
+            showDataMessage('error', `Error reading file: ${reader.error?.message || 'Unknown error'}`);
+        };
+
         reader.onload = (e) => {
+            interface UserProfile { username: string; }
             try {
                 const text = e.target?.result;
-                if (typeof text !== 'string') {
-                    throw new Error('File could not be read.');
-                }
+                if (typeof text !== 'string') throw new Error('File could not be read.');
                 
                 const data = JSON.parse(text);
 
-                // Basic validation
+                // --- Validation and Preview Data Extraction ---
+                const keyPattern = /^([a-zA-Z0-9]+)_[a-zA-Z]+_(20\d{2}-20\d{2})$/;
+                const profileKey = 'userProfiles';
+                
                 const keys = Object.keys(data);
-                const prefixes = ['releaseOrders_', 'liftingRecords_', 'dailyStockLogs_', 'riceDeliveryRecords_', 'cmrDepositOrders_', 'frkRecords_'];
-                if (!keys.some(k => prefixes.some(p => k.startsWith(p)))) {
+                if (!keys.some(k => keyPattern.test(k) || k === profileKey)) {
                     throw new Error('This does not appear to be a valid Miller Mitra backup file.');
                 }
-                
-                const confirmed = window.confirm(
-                    'WARNING: Restoring from this backup will completely OVERWRITE all your current data.\n\nThis action CANNOT be undone.\n\nAre you sure you want to proceed?'
-                );
 
-                if (confirmed) {
-                    localStorage.clear();
-                    for (const key in data) {
-                        if (Object.prototype.hasOwnProperty.call(data, key)) {
-                            localStorage.setItem(key, data[key]);
+                let profiles: string[] = [];
+                const seasonsByProfile: Record<string, string[]> = {};
+                
+                if (data[profileKey]) {
+                    try {
+                        const parsedProfiles: UserProfile[] = JSON.parse(data[profileKey]);
+                        profiles = parsedProfiles.map(p => p.username);
+                    } catch {
+                        // ignore if profiles are corrupted
+                    }
+                }
+
+                keys.forEach(key => {
+                    const match = key.match(keyPattern);
+                    if (match) {
+                        const username = match[1];
+                        const season = match[2];
+                        if (!profiles.includes(username)) {
+                            profiles.push(username);
+                        }
+                        if (!seasonsByProfile[username]) {
+                            seasonsByProfile[username] = [];
+                        }
+                        if (!seasonsByProfile[username].includes(season)) {
+                            seasonsByProfile[username].push(season);
                         }
                     }
-                    showDataMessage('success', 'Data restored successfully! The application will now reload.');
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 2000);
-                } else {
-                     showDataMessage('error', 'Restore operation cancelled.');
-                }
+                });
+
+                setBackupDataToRestore(data);
+                setBackupPreview({ profiles, seasonsByProfile });
+                setRestoreStrategy('merge');
+                setIsRestoreModalOpen(true);
 
             } catch (error) {
                  const message = error instanceof Error ? error.message : 'Failed to parse the backup file. Please ensure it is a valid JSON file.';
                  showDataMessage('error', message);
             } finally {
-                // Reset file input
                 if (event.target) {
                     event.target.value = '';
                 }
@@ -307,6 +465,36 @@ const SettingsContent = ({ installPrompt }: { installPrompt: any }) => {
         };
         reader.readAsText(file);
     };
+
+    const handleConfirmRestore = () => {
+        if (!backupDataToRestore) {
+            showDataMessage('error', 'No backup data loaded.');
+            return;
+        }
+
+        try {
+            if (restoreStrategy === 'replace') {
+                localStorage.clear();
+            }
+
+            for (const key in backupDataToRestore) {
+                if (Object.prototype.hasOwnProperty.call(backupDataToRestore, key)) {
+                    localStorage.setItem(key, backupDataToRestore[key]);
+                }
+            }
+
+            setIsRestoreModalOpen(false);
+            showDataMessage('success', 'Data restored successfully! The application will now reload.');
+            setTimeout(() => {
+                window.location.reload();
+            }, 2000);
+
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'An unexpected error occurred during restore.';
+            showDataMessage('error', message);
+        }
+    };
+
 
     const handleInstallClick = async () => {
         if (!installPrompt) {
@@ -324,15 +512,25 @@ const SettingsContent = ({ installPrompt }: { installPrompt: any }) => {
 
     return (
         <div className="space-y-8">
+            <UpdateManager />
+
             {/* Data Management Section */}
             <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
                 <h2 className="text-xl font-bold text-slate-800">Data Management</h2>
-                <p className="mt-1 mb-4 text-slate-500">
-                    Your data is stored locally in your browser. Use these tools to back up your data to a file or restore it. This is useful for moving data to a new computer or recovering from accidental data loss.
+                <p className="mt-1 text-slate-500">
+                    Your data is stored locally in your browser. Use these tools to back up all profiles and data to a single file or restore it. This is useful for moving data to a new computer.
                 </p>
+                <div className="p-4 my-4 text-sm text-amber-800 bg-amber-100 rounded-lg border border-amber-200" role="alert">
+                    <h3 className="font-bold">Important for Development</h3>
+                    <p className="mt-1">This preview environment may reset local data when the app's code is updated. To avoid losing your work, please use the <strong>Backup All Data</strong> button frequently. You can use <strong>Restore from Backup</strong> to reload your data if it disappears.</p>
+                </div>
                 {dataMessage && (
                     <div className={`p-3 mb-4 text-sm rounded-md border ${
-                        dataMessage.type === 'success' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'
+                        {
+                            success: 'bg-green-50 text-green-700 border-green-200',
+                            error: 'bg-red-50 text-red-700 border-red-200',
+                            info: 'bg-blue-50 text-blue-700 border-blue-200'
+                        }[dataMessage.type]
                     }`}>
                         {dataMessage.text}
                     </div>
@@ -342,7 +540,7 @@ const SettingsContent = ({ installPrompt }: { installPrompt: any }) => {
                         onClick={handleBackupData}
                         className="w-full md:w-auto inline-flex items-center justify-center px-6 py-3 font-semibold text-white bg-blue-600 rounded-lg shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-150"
                     >
-                        Backup My Data
+                        Backup All Data
                     </button>
                     <label
                         className="w-full md:w-auto inline-flex items-center justify-center px-6 py-3 font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-150 cursor-pointer"
@@ -362,7 +560,7 @@ const SettingsContent = ({ installPrompt }: { installPrompt: any }) => {
             <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
                 <h2 className="text-xl font-bold text-slate-800">Report an Issue or Suggest a Feature</h2>
                 <p className="mt-1 text-slate-500">
-                    If you've encountered a bug, have a question, or want to suggest an improvement, please let us know. Clicking "Send Report" will open your default email client.
+                    If you've encountered a bug, have a question, or want to suggest an improvement, please let us know. Your report will be sent instantly.
                 </p>
                 <form onSubmit={handleReportIssue} className="mt-4 space-y-4">
                     <div>
@@ -378,14 +576,23 @@ const SettingsContent = ({ installPrompt }: { installPrompt: any }) => {
                             className="w-full bg-white border border-slate-300 rounded-md shadow-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                             placeholder="Please provide as much detail as possible. For example:&#10;- What were you doing when the issue occurred?&#10;- What was the error message?&#10;- Which Delivery Order or record was affected?"
                             required
+                            disabled={isSubmitting}
                         />
                     </div>
+                    {submitStatus && (
+                        <div className={`p-3 text-sm rounded-md border ${
+                            submitStatus.type === 'success' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'
+                        }`}>
+                            {submitStatus.text}
+                        </div>
+                    )}
                     <div className="flex justify-end">
                         <button
                             type="submit"
-                            className="inline-flex items-center justify-center px-6 py-3 font-semibold text-white bg-blue-600 rounded-lg shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-150"
+                            disabled={isSubmitting}
+                            className="inline-flex items-center justify-center px-6 py-3 font-semibold text-white bg-blue-600 rounded-lg shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-150 disabled:bg-blue-400 disabled:cursor-not-allowed"
                         >
-                            Send Report via Email
+                            {isSubmitting ? 'Sending...' : 'Send Instant Report'}
                         </button>
                     </div>
                 </form>
@@ -430,12 +637,90 @@ const SettingsContent = ({ installPrompt }: { installPrompt: any }) => {
                     </div>
                 </div>
             </div>
+
+            {isRestoreModalOpen && backupPreview && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in-fast">
+                    <div className="bg-white rounded-lg shadow-2xl w-full max-w-2xl m-4" role="dialog" aria-modal="true" aria-labelledby="restore-modal-title">
+                        <div className="px-6 py-4 border-b border-slate-200">
+                            <h3 id="restore-modal-title" className="text-lg font-bold text-slate-800">Restore Data from Backup</h3>
+                            <p className="text-sm text-slate-500">Please review the contents and choose a restore method.</p>
+                        </div>
+                        <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+                            <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+                                <h4 className="font-semibold text-slate-700 mb-2">Backup File Contents:</h4>
+                                {backupPreview.profiles.length > 0 ? (
+                                    <ul className="space-y-2">
+                                        {backupPreview.profiles.map(profile => (
+                                            <li key={profile} className="text-sm">
+                                                <strong className="text-blue-600">{profile}</strong>
+                                                {backupPreview.seasonsByProfile[profile] && backupPreview.seasonsByProfile[profile].length > 0 && (
+                                                    <span className="text-slate-500 ml-2">(Seasons: {backupPreview.seasonsByProfile[profile].join(', ')})</span>
+                                                )}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                ) : (
+                                    <p className="text-slate-500 text-sm">No user profiles were explicitly found, but data is present.</p>
+                                )}
+                            </div>
+                            
+                            <div>
+                                <h4 className="font-semibold text-slate-700 mb-2">Choose Restore Method:</h4>
+                                <div className="space-y-3">
+                                    <label className="flex items-start p-4 border border-slate-300 rounded-lg cursor-pointer hover:bg-slate-50">
+                                        <input
+                                            type="radio"
+                                            name="restore-strategy"
+                                            value="merge"
+                                            checked={restoreStrategy === 'merge'}
+                                            onChange={() => setRestoreStrategy('merge')}
+                                            className="h-5 w-5 text-blue-600 focus:ring-blue-500 mt-0.5"
+                                        />
+                                        <div className="ml-4">
+                                            <span className="font-bold text-slate-800">Merge with Existing Data (Recommended)</span>
+                                            <p className="text-sm text-slate-600 mt-1">
+                                                Adds new data and updates existing profiles from the backup file. Any data on this device that isn't in the backup will be kept.
+                                            </p>
+                                        </div>
+                                    </label>
+                                    <label className="flex items-start p-4 border border-slate-300 rounded-lg cursor-pointer hover:bg-slate-50">
+                                        <input
+                                            type="radio"
+                                            name="restore-strategy"
+                                            value="replace"
+                                            checked={restoreStrategy === 'replace'}
+                                            onChange={() => setRestoreStrategy('replace')}
+                                            className="h-5 w-5 text-red-600 focus:ring-red-500 mt-0.5"
+                                        />
+                                        <div className="ml-4">
+                                            <span className="font-bold text-slate-800">Replace All Data (Full Restore)</span>
+                                            <p className="text-sm text-slate-600 mt-1">
+                                                <strong className="text-red-600">Warning:</strong> This will delete ALL current data on this device before loading the backup. This action cannot be undone.
+                                            </p>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+
+                        </div>
+                        <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex justify-end space-x-3">
+                            <button onClick={() => setIsRestoreModalOpen(false)} className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50">Cancel</button>
+                            <button
+                                onClick={handleConfirmRestore}
+                                className="px-6 py-2 text-sm font-bold text-white bg-blue-600 rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                            >
+                                Confirm & Restore
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
 
 // --- Main Page Component ---
-const SettingsPage = ({ installPrompt }: SettingsPageProps) => {
+const SettingsPage = ({ installPrompt, currentUser, currentSeason }: SettingsPageProps) => {
     const [activeSubTab, setActiveSubTab] = useState('sop'); // Default to showing the SOP guide first
 
     return (
@@ -474,7 +759,7 @@ const SettingsPage = ({ installPrompt }: SettingsPageProps) => {
             {/* Content Display */}
             <div className="animate-fade-in-fast">
                 {activeSubTab === 'sop' && <SopGuide />}
-                {activeSubTab === 'settings' && <SettingsContent installPrompt={installPrompt} />}
+                {activeSubTab === 'settings' && <SettingsContent installPrompt={installPrompt} currentUser={currentUser} currentSeason={currentSeason} />}
             </div>
         </div>
     );

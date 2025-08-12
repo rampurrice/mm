@@ -5,6 +5,7 @@ const APP_SHELL_URLS = [
     '/index.tsx',
     '/App.tsx',
     '/types.ts',
+    '/utils.ts',
     '/metadata.json',
     '/services/geminiService.ts',
     '/components/Header.tsx',
@@ -34,6 +35,13 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  const requestUrl = new URL(event.request.url);
+  // Always fetch version.json from the network to get the latest version info.
+  if (requestUrl.pathname === '/version.json') {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+  
   event.respondWith(
     caches.match(event.request)
       .then((response) => {

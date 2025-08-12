@@ -1,12 +1,12 @@
-
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { RiceDeliveryRecord, CmrDepositOrder, ReleaseOrder, DailyStockLog, DeliveryAgency, LiftingRecord, FrkRecord } from '../types';
 import { validateCmrDepositOrder, extractCmroDataFromPdf } from '../services/geminiService';
 import LoadingSpinner from './LoadingSpinner';
+import { getSafely, isRiceDeliveryRecord, isCmrDepositOrder, isReleaseOrder, isLiftingRecord, isDailyStockLog, isFrkRecord } from '../utils';
 
 interface RiceDeliveryPageProps {
   currentSeason: string;
+  currentUser: string;
 }
 
 const FILE_SIZE_LIMIT = 5 * 1024 * 1024; // 5MB
@@ -30,7 +30,7 @@ const fileToBase64 = (file: File): Promise<string> => {
   });
 };
 
-const RiceDeliveryPage = ({ currentSeason }: RiceDeliveryPageProps) => {
+const RiceDeliveryPage = ({ currentSeason, currentUser }: RiceDeliveryPageProps) => {
     const [releaseOrders, setReleaseOrders] = useState<ReleaseOrder[]>([]);
     const [liftingRecords, setLiftingRecords] = useState<LiftingRecord[]>([]);
     const [deliveryRecords, setDeliveryRecords] = useState<RiceDeliveryRecord[]>([]);
@@ -53,55 +53,35 @@ const RiceDeliveryPage = ({ currentSeason }: RiceDeliveryPageProps) => {
 
     // Load data from localStorage
     useEffect(() => {
-        if (!currentSeason) return;
-        try {
-            const savedDeliveries = localStorage.getItem(`riceDeliveryRecords_${currentSeason}`);
-            setDeliveryRecords(savedDeliveries ? JSON.parse(savedDeliveries) : []);
+        if (!currentSeason || !currentUser) return;
+        
+        setDeliveryRecords(getSafely(`${currentUser}_riceDeliveryRecords_${currentSeason}`, isRiceDeliveryRecord));
+        setCmrDepositOrders(getSafely(`${currentUser}_cmrDepositOrders_${currentSeason}`, isCmrDepositOrder));
+        setReleaseOrders(getSafely(`${currentUser}_releaseOrders_${currentSeason}`, isReleaseOrder));
+        setLiftingRecords(getSafely(`${currentUser}_liftingRecords_${currentSeason}`, isLiftingRecord));
+        setDailyLogs(getSafely(`${currentUser}_dailyStockLogs_${currentSeason}`, isDailyStockLog));
+        setFrkRecords(getSafely(`${currentUser}_frkRecords_${currentSeason}`, isFrkRecord));
 
-            const savedCmrOrders = localStorage.getItem(`cmrDepositOrders_${currentSeason}`);
-            setCmrDepositOrders(savedCmrOrders ? JSON.parse(savedCmrOrders) : []);
-            
-            const savedRos = localStorage.getItem(`releaseOrders_${currentSeason}`);
-            setReleaseOrders(savedRos ? JSON.parse(savedRos) : []);
-            
-            const savedLifting = localStorage.getItem(`liftingRecords_${currentSeason}`);
-            setLiftingRecords(savedLifting ? JSON.parse(savedLifting) : []);
-            
-            const savedLogs = localStorage.getItem(`dailyStockLogs_${currentSeason}`);
-            setDailyLogs(savedLogs ? JSON.parse(savedLogs) : []);
-            
-            const savedFrk = localStorage.getItem(`frkRecords_${currentSeason}`);
-            setFrkRecords(savedFrk ? JSON.parse(savedFrk) : []);
-
-        } catch (error) {
-            console.error("Error loading data for Rice Delivery page:", error);
-            setDeliveryRecords([]);
-            setCmrDepositOrders([]);
-            setReleaseOrders([]);
-            setLiftingRecords([]);
-            setDailyLogs([]);
-            setFrkRecords([]);
-        }
-    }, [currentSeason]);
+    }, [currentSeason, currentUser]);
 
     // Save data to localStorage
     useEffect(() => {
-        if (!currentSeason) return;
+        if (!currentSeason || !currentUser) return;
         try {
-            localStorage.setItem(`riceDeliveryRecords_${currentSeason}`, JSON.stringify(deliveryRecords));
+            localStorage.setItem(`${currentUser}_riceDeliveryRecords_${currentSeason}`, JSON.stringify(deliveryRecords));
         } catch (error) {
             console.error("Error saving delivery records:", error);
         }
-    }, [deliveryRecords, currentSeason]);
+    }, [deliveryRecords, currentSeason, currentUser]);
     
      useEffect(() => {
-        if (!currentSeason) return;
+        if (!currentSeason || !currentUser) return;
         try {
-            localStorage.setItem(`cmrDepositOrders_${currentSeason}`, JSON.stringify(cmrDepositOrders));
+            localStorage.setItem(`${currentUser}_cmrDepositOrders_${currentSeason}`, JSON.stringify(cmrDepositOrders));
         } catch (error) {
             console.error("Error saving CMR Deposit Orders:", error);
         }
-    }, [cmrDepositOrders, currentSeason]);
+    }, [cmrDepositOrders, currentSeason, currentUser]);
     
     // Calculate stock summary
     const stockSummary = useMemo(() => {

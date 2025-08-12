@@ -1,10 +1,10 @@
-
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { LiftingRecord, ReleaseOrder, RiceDeliveryRecord } from '../types';
+import { getSafely, getRawArraySafely, isReleaseOrder, isRiceDeliveryRecord } from '../utils';
 
 interface RegisterPageProps {
   currentSeason: string;
+  currentUser: string;
 }
 
 interface DoCentricLogItem {
@@ -17,28 +17,28 @@ interface DoCentricLogItem {
 
 // This utility handles the conversion of old data records to the new format.
 const migrateLiftingRecords = (records: any[]): LiftingRecord[] => {
-    if (!records) return [];
-    return records.map(record => {
-      // If it has bagType, it's an old record needing migration.
-      if (record.hasOwnProperty('bagType') && record.hasOwnProperty('numberOfBags')) {
-        const { bagType, numberOfBags, ...rest } = record;
-        const isNewBag = bagType === 'New Bag';
-        return {
-          ...rest,
-          numberOfNewBags: isNewBag ? (numberOfBags || 0) : 0,
-          numberOfUsedBags: !isNewBag ? (numberOfBags || 0) : 0,
-        };
-      }
-      // For new or already migrated records, ensure fields exist.
-      return {
-        ...record,
-        numberOfNewBags: record.numberOfNewBags || 0,
-        numberOfUsedBags: record.numberOfUsedBags || 0,
-      };
-    });
+    if (!Array.isArray(records)) return [];
+    return records
+        .filter(record => record && typeof record === 'object') // Ensure we only process objects
+        .map(record => {
+            if (record.hasOwnProperty('bagType') && record.hasOwnProperty('numberOfBags')) {
+                const { bagType, numberOfBags, ...rest } = record;
+                const isNewBag = bagType === 'New Bag';
+                return {
+                    ...rest,
+                    numberOfNewBags: isNewBag ? (numberOfBags || 0) : 0,
+                    numberOfUsedBags: !isNewBag ? (numberOfBags || 0) : 0,
+                };
+            }
+            return {
+                ...record,
+                numberOfNewBags: record.numberOfNewBags || 0,
+                numberOfUsedBags: record.numberOfUsedBags || 0,
+            };
+        });
 };
 
-const RegisterPage = ({ currentSeason }: RegisterPageProps) => {
+const RegisterPage = ({ currentSeason, currentUser }: RegisterPageProps) => {
     const [liftingRecords, setLiftingRecords] = useState<LiftingRecord[]>([]);
     const [riceDeliveryRecords, setRiceDeliveryRecords] = useState<RiceDeliveryRecord[]>([]);
     const [releaseOrders, setReleaseOrders] = useState<ReleaseOrder[]>([]);
@@ -50,43 +50,25 @@ const RegisterPage = ({ currentSeason }: RegisterPageProps) => {
     const [modalError, setModalError] = useState<string | null>(null);
 
     useEffect(() => {
-        if (!currentSeason) return;
+        if (!currentSeason || !currentUser) return;
 
-        try {
-          const savedRecords = localStorage.getItem(`liftingRecords_${currentSeason}`);
-          const parsedRecords = savedRecords ? JSON.parse(savedRecords) : [];
-          const migrated = migrateLiftingRecords(parsedRecords);
-          setLiftingRecords(migrated);
-        } catch (error) {
-          console.error(`Failed to parse lifting records from localStorage for season ${currentSeason}`, error);
-          setLiftingRecords([]);
-        }
+        const rawLiftingRecords = getRawArraySafely(`${currentUser}_liftingRecords_${currentSeason}`);
+        const migrated = migrateLiftingRecords(rawLiftingRecords);
+        setLiftingRecords(migrated);
 
-        try {
-            const savedDeliveries = localStorage.getItem(`riceDeliveryRecords_${currentSeason}`);
-            setRiceDeliveryRecords(savedDeliveries ? JSON.parse(savedDeliveries) : []);
-        } catch (error) {
-            console.error(`Failed to parse rice delivery records from localStorage for season ${currentSeason}`, error);
-            setRiceDeliveryRecords([]);
-        }
+        setRiceDeliveryRecords(getSafely(`${currentUser}_riceDeliveryRecords_${currentSeason}`, isRiceDeliveryRecord));
+        setReleaseOrders(getSafely(`${currentUser}_releaseOrders_${currentSeason}`, isReleaseOrder));
 
-        try {
-            const savedOrders = localStorage.getItem(`releaseOrders_${currentSeason}`);
-            setReleaseOrders(savedOrders ? JSON.parse(savedOrders) : []);
-        } catch (error) {
-            console.error(`Failed to parse release orders from localStorage for season ${currentSeason}`, error);
-            setReleaseOrders([]);
-        }
-    }, [currentSeason]);
+    }, [currentSeason, currentUser]);
 
     useEffect(() => {
-        if (!currentSeason) return;
+        if (!currentSeason || !currentUser) return;
         try {
-            localStorage.setItem(`liftingRecords_${currentSeason}`, JSON.stringify(liftingRecords));
+            localStorage.setItem(`${currentUser}_liftingRecords_${currentSeason}`, JSON.stringify(liftingRecords));
         } catch (error) {
             console.error("Failed to save lifting records to localStorage", error);
         }
-    }, [liftingRecords, currentSeason]);
+    }, [liftingRecords, currentSeason, currentUser]);
 
     const doCentricLog = useMemo((): DoCentricLogItem[] => {
         const logMap: Record<string, DoCentricLogItem> = {};

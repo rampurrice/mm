@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect } from 'react';
 import Header from './components/Header';
 import DashboardPage from './components/DashboardPage';
@@ -17,23 +15,10 @@ import { Tab } from './types';
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('Dashboard');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [currentSeason, setCurrentSeason] = useState<string>('');
   const [availableSeasons, setAvailableSeasons] = useState<string[]>([]);
   const [installPrompt, setInstallPrompt] = useState<any>(null); // For PWA installation
-
-  useEffect(() => {
-    // Scan localStorage for all available seasons from saved release orders
-    const keys = Object.keys(localStorage);
-    const seasonKeys = keys
-      .filter(key => key.startsWith('releaseOrders_'))
-      .map(key => key.replace('releaseOrders_', ''));
-    
-    const defaultSeasons = ['2024-2025', '2023-2024'];
-    const allSeasons = Array.from(new Set([...defaultSeasons, ...seasonKeys])).sort((a, b) => b.localeCompare(a));
-    
-    setAvailableSeasons(allSeasons);
-    
-  }, []); // Run only once on mount to initialize seasons
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -47,46 +32,49 @@ function App() {
     };
   }, []);
 
-  const handleLogin = (season: string) => {
-    // Ensure the selected season is valid before logging in
-    const allValidSeasons = Array.from(new Set([...availableSeasons, '2024-2025', '2023-2024']));
-    if (allValidSeasons.includes(season)) {
-      setCurrentSeason(season);
-      setIsAuthenticated(true);
-      setActiveTab('Dashboard'); // Always start on dashboard after login
-    } else {
-        // Fallback for an unexpected error
-        console.error("Login attempt with an invalid season:", season);
-    }
+  const handleLogin = (username: string, season: string, userSeasons: string[]) => {
+    setCurrentUser(username);
+    setCurrentSeason(season);
+    setAvailableSeasons(userSeasons);
+    setIsAuthenticated(true);
+    setActiveTab('Dashboard'); // Always start on dashboard after login
   };
+  
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setCurrentUser(null);
+    setCurrentSeason('');
+    setAvailableSeasons([]);
+    setActiveTab('Dashboard');
+  }
 
   const renderContent = () => {
-    if (!isAuthenticated && currentSeason) { // Check for currentSeason to prevent flash of loading text
+    if (!isAuthenticated || !currentUser || !currentSeason) {
       return (
         <div className="flex items-center justify-center h-64">
-          <p className="text-slate-500">Loading season data...</p>
+          <p className="text-slate-500">Loading...</p>
         </div>
       );
     }
     switch (activeTab) {
       case 'Dashboard':
-        return <DashboardPage currentSeason={currentSeason} />;
+        return <DashboardPage currentSeason={currentSeason} currentUser={currentUser} />;
       case 'Paddy Lifting':
-        return <PaddyLiftingPage currentSeason={currentSeason} setCurrentSeason={setCurrentSeason} />;
+        return <PaddyLiftingPage currentSeason={currentSeason} currentUser={currentUser} setCurrentSeason={setCurrentSeason} setAvailableSeasons={setAvailableSeasons} />;
       case 'Milling':
-        return <MillingPage currentSeason={currentSeason} />;
+        return <MillingPage currentSeason={currentSeason} currentUser={currentUser} />;
       case 'FRK':
-        return <FrkManagementPage currentSeason={currentSeason} />;
+        return <FrkManagementPage currentSeason={currentSeason} currentUser={currentUser} />;
       case 'Rice Delivery':
-        return <RiceDeliveryPage currentSeason={currentSeason} />;
+        return <RiceDeliveryPage currentSeason={currentSeason} currentUser={currentUser} />;
       case 'Register':
-        return <RegisterPage currentSeason={currentSeason} />;
+        return <RegisterPage currentSeason={currentSeason} currentUser={currentUser} />;
       case 'Reports':
-        return <ReportsPage currentSeason={currentSeason} />;
+        return <ReportsPage currentSeason={currentSeason} currentUser={currentUser} />;
       case 'Help':
-        return <SettingsPage installPrompt={installPrompt} />;
+        return <SettingsPage installPrompt={installPrompt} currentUser={currentUser} currentSeason={currentSeason} />;
       default:
-        return <DashboardPage currentSeason={currentSeason} />;
+        return <DashboardPage currentSeason={currentSeason} currentUser={currentUser} />;
     }
   };
 
@@ -94,7 +82,6 @@ function App() {
     return (
       <LoginPage 
         onLogin={handleLogin}
-        availableSeasons={availableSeasons}
       />
     );
   }
@@ -107,6 +94,8 @@ function App() {
         currentSeason={currentSeason}
         setCurrentSeason={setCurrentSeason}
         availableSeasons={availableSeasons}
+        currentUser={currentUser}
+        onLogout={handleLogout}
       />
       <main className="p-4 md:p-8">
         {renderContent()}

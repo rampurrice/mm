@@ -1,7 +1,6 @@
-
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { ReleaseOrder, LiftingRecord, DailyStockLog } from '../types';
+import { getSafely, isReleaseOrder, isLiftingRecord, isDailyStockLog } from '../utils';
 
 interface GodownSummary {
   total: number;
@@ -10,48 +9,42 @@ interface GodownSummary {
 
 interface DashboardPageProps {
   currentSeason: string;
+  currentUser: string;
 }
 
-const DashboardPage = ({ currentSeason }: DashboardPageProps) => {
+const DashboardPage = ({ currentSeason, currentUser }: DashboardPageProps) => {
   const [summary, setSummary] = useState<Record<string, GodownSummary>>({});
   const [dailyLogs, setDailyLogs] = useState<DailyStockLog[]>([]);
 
   useEffect(() => {
-    if (!currentSeason) return;
+    if (!currentSeason || !currentUser) return;
 
-    try {
-      const savedOrders = localStorage.getItem(`releaseOrders_${currentSeason}`);
-      const releaseOrders: ReleaseOrder[] = savedOrders ? JSON.parse(savedOrders) : [];
-      
-      const savedRecords = localStorage.getItem(`liftingRecords_${currentSeason}`);
-      const liftingRecords: LiftingRecord[] = savedRecords ? JSON.parse(savedRecords) : [];
+    const releaseOrders = getSafely(`${currentUser}_releaseOrders_${currentSeason}`, isReleaseOrder);
+    const liftingRecords = getSafely(`${currentUser}_liftingRecords_${currentSeason}`, isLiftingRecord);
+    const dailyLogsData = getSafely(`${currentUser}_dailyStockLogs_${currentSeason}`, isDailyStockLog);
 
-      const savedLogs = localStorage.getItem(`dailyStockLogs_${currentSeason}`);
-      setDailyLogs(savedLogs ? JSON.parse(savedLogs) : []);
-      
-      const godownSummary: Record<string, GodownSummary> = {};
+    setDailyLogs(dailyLogsData);
+    
+    const godownSummary: Record<string, GodownSummary> = {};
 
-      // Calculate total allotted quantity per godown
-      releaseOrders.forEach(ro => {
-        if (!godownSummary[ro.godown]) {
-          godownSummary[ro.godown] = { total: 0, lifted: 0 };
-        }
-        godownSummary[ro.godown].total += parseFloat(ro.quantity) || 0;
-      });
+    // Calculate total allotted quantity per godown
+    releaseOrders.forEach(ro => {
+      if (!godownSummary[ro.godown]) {
+        godownSummary[ro.godown] = { total: 0, lifted: 0 };
+      }
+      godownSummary[ro.godown].total += parseFloat(ro.quantity) || 0;
+    });
 
-      // Calculate total lifted quantity per godown
-      liftingRecords.forEach(lr => {
-        if (godownSummary[lr.godown]) {
-          godownSummary[lr.godown].lifted += lr.netPaddyQuantity || 0;
-        }
-      });
+    // Calculate total lifted quantity per godown
+    liftingRecords.forEach(lr => {
+      if (godownSummary[lr.godown]) {
+        godownSummary[lr.godown].lifted += lr.netPaddyQuantity || 0;
+      }
+    });
+    
+    setSummary(godownSummary);
       
-      setSummary(godownSummary);
-      
-    } catch (error) {
-      console.error(`Failed to parse data from localStorage for dashboard in season ${currentSeason}`, error);
-    }
-  }, [currentSeason]);
+  }, [currentSeason, currentUser]);
 
   const liftingTotals = useMemo(() => {
     return Object.values(summary).reduce((acc, data) => {

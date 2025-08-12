@@ -1,11 +1,11 @@
-
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { DailyStockLog, LiftingRecord, RiceDeliveryRecord } from '../types';
 import TurnoutPieChart from './TurnoutPieChart';
+import { getRawArraySafely } from '../utils';
 
 interface MillingPageProps {
   currentSeason: string;
+  currentUser: string;
 }
 
 const PADDY_BAG_WEIGHT_QTL = 0.4; // 40kg per bag is 0.4 Quintals, used as a fallback.
@@ -28,39 +28,38 @@ const initialLogState: Partial<DailyStockLog> = {
 };
 
 const migrateDailyLogs = (logs: any[]): DailyStockLog[] => {
-    if (!logs) return [];
-    return logs.map(log => {
-        // If it has the old 'paddyBagsOpened' field, migrate it.
-        if (log.hasOwnProperty('paddyBagsOpened')) {
-            const { paddyBagsOpened, ...rest } = log;
-            return {
-                ...initialLogState,
-                ...rest,
-                paddyBagsOpenedNew: paddyBagsOpened || 0,
-                paddyBagsOpenedUsed: 0,
-            };
-        }
-        // Ensure all fields from the new interface exist.
-        return {
-            ...initialLogState,
-            ...log,
-        };
-    });
+    if (!Array.isArray(logs)) return [];
+    return logs
+        .filter(log => log && typeof log === 'object')
+        .map(log => {
+            if (log.hasOwnProperty('paddyBagsOpened')) {
+                const { paddyBagsOpened, ...rest } = log;
+                return {
+                    ...initialLogState,
+                    ...rest,
+                    paddyBagsOpenedNew: paddyBagsOpened || 0,
+                    paddyBagsOpenedUsed: 0,
+                } as DailyStockLog;
+            }
+            return { ...initialLogState, ...log } as DailyStockLog;
+        });
 };
 
 const migrateLiftingRecords = (records: any[]): LiftingRecord[] => {
-    if (!records) return [];
-    return records.map(record => {
-      return {
-        ...record,
-        numberOfNewBags: record.numberOfNewBags || 0,
-        numberOfUsedBags: record.numberOfUsedBags || 0,
-      };
-    });
+    if (!Array.isArray(records)) return [];
+    return records
+        .filter(record => record && typeof record === 'object')
+        .map(record => {
+          return {
+            ...record,
+            numberOfNewBags: record.numberOfNewBags || 0,
+            numberOfUsedBags: record.numberOfUsedBags || 0,
+          } as LiftingRecord;
+        });
 };
 
 
-const MillingPage = ({ currentSeason }: MillingPageProps) => {
+const MillingPage = ({ currentSeason, currentUser }: MillingPageProps) => {
     const [dailyLogs, setDailyLogs] = useState<DailyStockLog[]>([]);
     const [liftingRecords, setLiftingRecords] = useState<LiftingRecord[]>([]);
     const [riceDeliveryRecords, setRiceDeliveryRecords] = useState<RiceDeliveryRecord[]>([]);
@@ -72,44 +71,29 @@ const MillingPage = ({ currentSeason }: MillingPageProps) => {
     const [modalError, setModalError] = useState<string | null>(null);
 
     useEffect(() => {
-        if (!currentSeason) return;
+        if (!currentSeason || !currentUser) return;
 
-        try {
-            const savedLogs = localStorage.getItem(`dailyStockLogs_${currentSeason}`);
-            const migratedLogs = migrateDailyLogs(savedLogs ? JSON.parse(savedLogs) : []);
-            setDailyLogs(migratedLogs);
-        } catch (error) {
-            console.error(`Failed to load daily stock logs for season ${currentSeason}`, error);
-            setDailyLogs([]);
-        }
+        const rawLogs = getRawArraySafely(`${currentUser}_dailyStockLogs_${currentSeason}`);
+        const migratedLogs = migrateDailyLogs(rawLogs);
+        setDailyLogs(migratedLogs);
         
-        try {
-          const savedLifting = localStorage.getItem(`liftingRecords_${currentSeason}`);
-          const migratedLifting = migrateLiftingRecords(savedLifting ? JSON.parse(savedLifting) : []);
-          setLiftingRecords(migratedLifting);
-        } catch (error) {
-            console.error(`Failed to load lifting records for season ${currentSeason}`, error);
-            setLiftingRecords([]);
-        }
+        const rawLifting = getRawArraySafely(`${currentUser}_liftingRecords_${currentSeason}`);
+        const migratedLifting = migrateLiftingRecords(rawLifting);
+        setLiftingRecords(migratedLifting);
+        
+        const rawDeliveries = getRawArraySafely(`${currentUser}_riceDeliveryRecords_${currentSeason}`);
+        setRiceDeliveryRecords(rawDeliveries);
 
-        try {
-            const savedDeliveries = localStorage.getItem(`riceDeliveryRecords_${currentSeason}`);
-            setRiceDeliveryRecords(savedDeliveries ? JSON.parse(savedDeliveries) : []);
-        } catch (error) {
-            console.error(`Failed to load rice delivery records for season ${currentSeason}`, error);
-            setRiceDeliveryRecords([]);
-        }
-
-    }, [currentSeason]);
+    }, [currentSeason, currentUser]);
 
     useEffect(() => {
-        if (!currentSeason) return;
+        if (!currentSeason || !currentUser) return;
         try {
-            localStorage.setItem(`dailyStockLogs_${currentSeason}`, JSON.stringify(dailyLogs));
+            localStorage.setItem(`${currentUser}_dailyStockLogs_${currentSeason}`, JSON.stringify(dailyLogs));
         } catch (error) {
             console.error("Failed to save daily stock logs to localStorage", error);
         }
-    }, [dailyLogs, currentSeason]);
+    }, [dailyLogs, currentSeason, currentUser]);
     
     useEffect(() => {
         // Auto-calculate rice quantity when rice bags change in the modal

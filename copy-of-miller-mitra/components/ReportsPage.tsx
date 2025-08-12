@@ -1,10 +1,10 @@
-
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { LiftingRecord, ReleaseOrder, DailyStockLog, RiceDeliveryRecord, FrkRecord } from '../types';
+import { getSafely, getRawArraySafely, isReleaseOrder, isDailyStockLog, isRiceDeliveryRecord, isFrkRecord } from '../utils';
 
 interface ReportsPageProps {
   currentSeason: string;
+  currentUser: string;
 }
 
 const CMR_TURNOUT_RATIO = 0.67; // 67% turnout from paddy to rice
@@ -14,28 +14,28 @@ const FRK_BLENDING_RATIO = 0.01; // 1% Fortified Rice Kernel blending ratio
 
 // This utility handles the conversion of old data records to the new format.
 const migrateLiftingRecords = (records: any[]): LiftingRecord[] => {
-    if (!records) return [];
-    return records.map(record => {
-      // If it has bagType, it's an old record needing migration.
-      if (record.hasOwnProperty('bagType') && record.hasOwnProperty('numberOfBags')) {
-        const { bagType, numberOfBags, ...rest } = record;
-        const isNewBag = bagType === 'New Bag';
-        return {
-          ...rest,
-          numberOfNewBags: isNewBag ? (numberOfBags || 0) : 0,
-          numberOfUsedBags: !isNewBag ? (numberOfBags || 0) : 0,
-        };
-      }
-      // For new or already migrated records, ensure fields exist.
-      return {
-        ...record,
-        numberOfNewBags: record.numberOfNewBags || 0,
-        numberOfUsedBags: record.numberOfUsedBags || 0,
-      };
-    });
-  };
+    if (!Array.isArray(records)) return [];
+    return records
+        .filter(record => record && typeof record === 'object')
+        .map(record => {
+            if (record.hasOwnProperty('bagType') && record.hasOwnProperty('numberOfBags')) {
+                const { bagType, numberOfBags, ...rest } = record;
+                const isNewBag = bagType === 'New Bag';
+                return {
+                    ...rest,
+                    numberOfNewBags: isNewBag ? (numberOfBags || 0) : 0,
+                    numberOfUsedBags: !isNewBag ? (numberOfBags || 0) : 0,
+                };
+            }
+            return {
+                ...record,
+                numberOfNewBags: record.numberOfNewBags || 0,
+                numberOfUsedBags: record.numberOfUsedBags || 0,
+            };
+        });
+};
 
-const ReportsPage = ({ currentSeason }: ReportsPageProps) => {
+const ReportsPage = ({ currentSeason, currentUser }: ReportsPageProps) => {
     const [allLiftingRecords, setAllLiftingRecords] = useState<LiftingRecord[]>([]);
     const [releaseOrders, setReleaseOrders] = useState<ReleaseOrder[]>([]);
     const [dailyLogs, setDailyLogs] = useState<DailyStockLog[]>([]);
@@ -52,35 +52,20 @@ const ReportsPage = ({ currentSeason }: ReportsPageProps) => {
     const [hasGenerated, setHasGenerated] = useState(false);
 
     useEffect(() => {
-        if (!currentSeason) return;
+        if (!currentSeason || !currentUser) return;
 
-        try {
-          const savedLiftingRecords = localStorage.getItem(`liftingRecords_${currentSeason}`);
-          const parsedLiftingRecords: any[] = savedLiftingRecords ? JSON.parse(savedLiftingRecords) : [];
-          setAllLiftingRecords(migrateLiftingRecords(parsedLiftingRecords));
-          
-          const savedReleaseOrders = localStorage.getItem(`releaseOrders_${currentSeason}`);
-          const parsedReleaseOrders: ReleaseOrder[] = savedReleaseOrders ? JSON.parse(savedReleaseOrders) : [];
-          setReleaseOrders(parsedReleaseOrders);
-          
-          const savedLogs = localStorage.getItem(`dailyStockLogs_${currentSeason}`);
-          setDailyLogs(savedLogs ? JSON.parse(savedLogs) : []);
+        const rawLifting = getRawArraySafely(`${currentUser}_liftingRecords_${currentSeason}`);
+        setAllLiftingRecords(migrateLiftingRecords(rawLifting));
 
-          const savedDeliveries = localStorage.getItem(`riceDeliveryRecords_${currentSeason}`);
-          setRiceDeliveryRecords(savedDeliveries ? JSON.parse(savedDeliveries) : []);
-          
-          const savedFrk = localStorage.getItem(`frkRecords_${currentSeason}`);
-          setFrkRecords(savedFrk ? JSON.parse(savedFrk) : []);
+        setReleaseOrders(getSafely(`${currentUser}_releaseOrders_${currentSeason}`, isReleaseOrder));
+        setDailyLogs(getSafely(`${currentUser}_dailyStockLogs_${currentSeason}`, isDailyStockLog));
+        setRiceDeliveryRecords(getSafely(`${currentUser}_riceDeliveryRecords_${currentSeason}`, isRiceDeliveryRecord));
+        setFrkRecords(getSafely(`${currentUser}_frkRecords_${currentSeason}`, isFrkRecord));
 
-
-        } catch (error) {
-          console.error(`Failed to parse data for reports in season ${currentSeason}`, error);
-        }
-        
         // Reset report when season changes
         setFilteredRecords([]);
         setHasGenerated(false);
-    }, [currentSeason]);
+    }, [currentSeason, currentUser]);
 
     const godowns = useMemo(() => {
         const godownSet = new Set(allLiftingRecords.map(r => r.godown));

@@ -1,10 +1,12 @@
 
+
 export type Tab = 'Dashboard' | 'Paddy Lifting' | 'Milling' | 'FRK' | 'Rice Delivery' | 'Register' | 'Reports' | 'Help';
 
-export type ChatMessage = {
-  role: 'user' | 'model';
-  content: string;
-};
+export interface UserProfile {
+  username: string;
+  password: string; // In a real-world app with a backend, this would be a secure hash.
+  recoveryPhraseHash: string; // A hash of the 12-word recovery phrase.
+}
 
 export interface ReleaseOrder {
   doNo: string;

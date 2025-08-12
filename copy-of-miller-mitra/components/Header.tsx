@@ -1,5 +1,3 @@
-
-
 import React from 'react';
 import { Tab } from '../types';
 
@@ -9,6 +7,8 @@ interface HeaderProps {
     currentSeason: string;
     setCurrentSeason: (season: string) => void;
     availableSeasons: string[];
+    currentUser: string | null;
+    onLogout: () => void;
 }
 
 const MillerMitraIcon = ({ className }: { className?: string }) => (
@@ -32,7 +32,7 @@ const MillerMitraIcon = ({ className }: { className?: string }) => (
 
 const tabs: Tab[] = ['Dashboard', 'Paddy Lifting', 'Milling', 'FRK', 'Rice Delivery', 'Register', 'Reports', 'Help'];
 
-const Header = ({ activeTab, setActiveTab, currentSeason, setCurrentSeason, availableSeasons }: HeaderProps) => {
+const Header = ({ activeTab, setActiveTab, currentSeason, setCurrentSeason, availableSeasons, currentUser, onLogout }: HeaderProps) => {
   return (
     <header className="bg-white shadow-sm print:hidden">
       <div className="bg-green-800 text-white p-4 flex items-center justify-between">
@@ -40,22 +40,31 @@ const Header = ({ activeTab, setActiveTab, currentSeason, setCurrentSeason, avai
             <MillerMitraIcon className="h-8 w-8" />
             <div>
               <h1 className="text-xl md:text-2xl font-bold">Miller Mitra</h1>
-              <p className="text-sm text-green-200">Your digital milling companion</p>
+              <p className="text-sm text-green-200">Welcome, <span className="font-semibold">{currentUser}</span></p>
             </div>
         </div>
-        <div className="flex items-center space-x-2">
-            <label htmlFor="season-select" className="text-sm font-medium text-green-200 whitespace-nowrap">Milling Season:</label>
-            <select
-                id="season-select"
-                value={currentSeason}
-                onChange={(e) => setCurrentSeason(e.target.value)}
-                className="bg-green-700 border border-green-600 text-white text-sm rounded-md focus:ring-green-500 focus:border-green-500 block w-full p-2"
-                aria-label="Select Milling Season"
+        <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2">
+                <label htmlFor="season-select" className="text-sm font-medium text-green-200 whitespace-nowrap">Season:</label>
+                <select
+                    id="season-select"
+                    value={currentSeason}
+                    onChange={(e) => setCurrentSeason(e.target.value)}
+                    className="bg-green-700 border border-green-600 text-white text-sm rounded-md focus:ring-green-500 focus:border-green-500 block w-full p-2"
+                    aria-label="Select Milling Season"
+                >
+                    {availableSeasons.map(season => (
+                        <option key={season} value={season}>{season}</option>
+                    ))}
+                </select>
+            </div>
+            <button
+                onClick={onLogout}
+                className="text-sm font-medium text-white bg-red-600 hover:bg-red-700 px-3 py-2 rounded-md transition-colors"
+                aria-label="Logout"
             >
-                {availableSeasons.map(season => (
-                    <option key={season} value={season}>{season}</option>
-                ))}
-            </select>
+                Logout
+            </button>
         </div>
       </div>
       

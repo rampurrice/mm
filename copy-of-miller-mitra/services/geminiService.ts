@@ -44,7 +44,7 @@ const roSchema = {
         issueCenter: { type: Type.STRING, description: "The name of the issuing center or 'Praday Kendra' from the table (e.g., Satna Unit-II)" },
         godown: { type: Type.STRING, description: "The name or location of the godown/warehouse from the table (e.g., JAMUNA WAREHOUSE NO. 25)" },
         quantity: { type: Type.STRING, description: "The total quantity of paddy in Quintals from the table (e.g., 433.00)" },
-        validUpto: { type: Type.STRING, description: "The final validity date for lifting the paddy (e.g., 22/Mar/2025)" },
+        validUpto: { type: Type.STRING, description: "The final validity date for a pickup (\"धान का उठाव सुनिश्चित करें\") (e.g., 22/Mar/2025)" },
         uparjanVarsh: { type: Type.STRING, description: "The procurement year, labeled 'उपार्जन वर्ष' (e.g., '2023-24')." },
     },
     required: ["doNo", "doDate", "lotNo", "issueCenter", "godown", "quantity", "validUpto", "uparjanVarsh"],
@@ -53,7 +53,7 @@ const roSchema = {
 export async function extractRoDataFromPdf(base64Pdf: string): Promise<ReleaseOrder> {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const pdfPart = { inlineData: { mimeType: 'application/pdf', data: base64Pdf } };
-    const textPart = { text: `From the provided MPSCSC Paddy Delivery Order PDF, extract the following details precisely: 1. "डी०ओ० क्रमांक" as doNo; 2. "डी०ओ० दिनाँक" as doDate; 3. "Lot No." from the table as lotNo; 4. "Issue Center" from the table as issueCenter; 5. "Godown" from the table as godown; 6. "Quantity (Qtls)" from the table as quantity; 7. The final date mentioned in the "प्रतिलिपि" section for ensuring pickup ("धान का उठाव सुनिश्चित करें") as validUpto; 8. The "उपार्जन वर्ष" (procurement year) as uparjanVarsh. Provide the response in the requested JSON format.` };
+    const textPart = { text: `From the provided MPSCSC Paddy Delivery Order PDF, extract the following details precisely: 1. 'डी०ओ० क्रमांक' as doNo; 2. 'डी०ओ० दिनाँक' as doDate; 3. 'Lot No.' from the table as lotNo; 4. 'Issue Center' from the table as issueCenter; 5. 'Godown' from the table as godown; 6. 'Quantity (Qtls)' from the table as quantity; 7. The final date mentioned in the 'प्रतिलिपि' section for ensuring pickup ('धान का उठाव सुनिश्चित करें') as validUpto; 8. The 'उपार्जन वर्ष' (procurement year) as uparjanVarsh. Provide the response in the requested JSON format.` };
 
     try {
         const response = await ai.models.generateContent({

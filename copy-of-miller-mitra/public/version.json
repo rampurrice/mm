@@ -1,0 +1,5 @@
+{
+  "version": "1.2.0",
+  "releaseNotes": "• Added a 'Forgot Password' feature using a secure recovery phrase.\n• Added an in-app update notification system.\n• General bug fixes and performance improvements.",
+  "downloadUrl": "#"
+}

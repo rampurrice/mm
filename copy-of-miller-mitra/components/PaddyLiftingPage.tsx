@@ -1,9 +1,8 @@
-
-
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { extractRoDataFromPdf, validateDhanDeliveryOrder, extractKantaParchiData } from '../services/geminiService';
 import { ReleaseOrder, LiftingRecord } from '../types';
 import LoadingSpinner from './LoadingSpinner';
+import { getSafely, getRawArraySafely, isReleaseOrder } from '../utils';
 
 const FILE_SIZE_LIMIT = 5 * 1024 * 1024; // 5MB
 const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
@@ -20,30 +19,32 @@ interface LiftDistributionItem {
 
 interface PaddyLiftingPageProps {
   currentSeason: string;
+  currentUser: string;
   setCurrentSeason: (season: string) => void;
+  setAvailableSeasons: (seasons: string[]) => void;
 }
 
 // This utility handles the conversion of old data records to the new format.
 const migrateLiftingRecords = (records: any[]): LiftingRecord[] => {
-  if (!records) return [];
-  return records.map(record => {
-    // If it has bagType, it's an old record needing migration.
-    if (record.hasOwnProperty('bagType') && record.hasOwnProperty('numberOfBags')) {
-      const { bagType, numberOfBags, ...rest } = record;
-      const isNewBag = bagType === 'New Bag';
-      return {
-        ...rest,
-        numberOfNewBags: isNewBag ? (numberOfBags || 0) : 0,
-        numberOfUsedBags: !isNewBag ? (numberOfBags || 0) : 0,
-      };
-    }
-    // For new or already migrated records, ensure fields exist.
-    return {
-      ...record,
-      numberOfNewBags: record.numberOfNewBags || 0,
-      numberOfUsedBags: record.numberOfUsedBags || 0,
-    };
-  });
+    if (!Array.isArray(records)) return [];
+    return records
+        .filter(record => record && typeof record === 'object') // Ensure we only process objects
+        .map(record => {
+            if (record.hasOwnProperty('bagType') && record.hasOwnProperty('numberOfBags')) {
+                const { bagType, numberOfBags, ...rest } = record;
+                const isNewBag = bagType === 'New Bag';
+                return {
+                    ...rest,
+                    numberOfNewBags: isNewBag ? (numberOfBags || 0) : 0,
+                    numberOfUsedBags: !isNewBag ? (numberOfBags || 0) : 0,
+                };
+            }
+            return {
+                ...record,
+                numberOfNewBags: record.numberOfNewBags || 0,
+                numberOfUsedBags: record.numberOfUsedBags || 0,
+            };
+        });
 };
 
 
@@ -70,7 +71,7 @@ const TrashIcon = () => (
 );
 
 
-const PaddyLiftingPage = ({ currentSeason, setCurrentSeason }: PaddyLiftingPageProps) => {
+const PaddyLiftingPage = ({ currentSeason, currentUser, setCurrentSeason, setAvailableSeasons }: PaddyLiftingPageProps) => {
   const [releaseOrders, setReleaseOrders] = useState<ReleaseOrder[]>([]);
   const [liftingRecords, setLiftingRecords] = useState<LiftingRecord[]>([]);
 
@@ -102,45 +103,35 @@ const PaddyLiftingPage = ({ currentSeason, setCurrentSeason }: PaddyLiftingPageP
 
   // Load data based on current season
   useEffect(() => {
-    if (!currentSeason) return;
+    if (!currentSeason || !currentUser) return;
 
-    try {
-      const savedOrders = localStorage.getItem(`releaseOrders_${currentSeason}`);
-      const parsedOrders = savedOrders ? JSON.parse(savedOrders) : [];
-      setReleaseOrders(parsedOrders.sort((a: ReleaseOrder, b: ReleaseOrder) => a.doNo.localeCompare(b.doNo)));
-    } catch (error) {
-      console.error(`Failed to parse release orders for season ${currentSeason}`, error);
-      setReleaseOrders([]);
-    }
+    const loadedOrders = getSafely(`${currentUser}_releaseOrders_${currentSeason}`, isReleaseOrder);
+    setReleaseOrders(loadedOrders.sort((a, b) => a.doNo.localeCompare(b.doNo)));
     
-    try {
-      const savedRecords = localStorage.getItem(`liftingRecords_${currentSeason}`);
-      const migratedRecords = migrateLiftingRecords(savedRecords ? JSON.parse(savedRecords) : []);
-      setLiftingRecords(migratedRecords);
-    } catch (error) {
-      console.error(`Failed to parse lifting records for season ${currentSeason}`, error);
-      setLiftingRecords([]);
-    }
-  }, [currentSeason]);
+    const rawLiftingRecords = getRawArraySafely(`${currentUser}_liftingRecords_${currentSeason}`);
+    const migratedRecords = migrateLiftingRecords(rawLiftingRecords);
+    setLiftingRecords(migratedRecords);
+
+  }, [currentSeason, currentUser]);
 
   // Save data when it changes for the current season
   useEffect(() => {
-    if (!currentSeason) return;
+    if (!currentSeason || !currentUser) return;
     try {
-        localStorage.setItem(`releaseOrders_${currentSeason}`, JSON.stringify(releaseOrders));
+        localStorage.setItem(`${currentUser}_releaseOrders_${currentSeason}`, JSON.stringify(releaseOrders));
     } catch (error) {
         console.error("Failed to save release orders to localStorage", error);
     }
-  }, [releaseOrders, currentSeason]);
+  }, [releaseOrders, currentSeason, currentUser]);
 
   useEffect(() => {
-    if (!currentSeason) return;
+    if (!currentSeason || !currentUser) return;
     try {
-        localStorage.setItem(`liftingRecords_${currentSeason}`, JSON.stringify(liftingRecords));
+        localStorage.setItem(`${currentUser}_liftingRecords_${currentSeason}`, JSON.stringify(liftingRecords));
     } catch (error) {
         console.error("Failed to save lifting records to localStorage", error);
     }
-  }, [liftingRecords, currentSeason]);
+  }, [liftingRecords, currentSeason, currentUser]);
   
   const showSuccessMessage = (message: string) => {
     setSuccessMessage(message);
@@ -151,7 +142,7 @@ const PaddyLiftingPage = ({ currentSeason, setCurrentSeason }: PaddyLiftingPageP
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file) return;
+    if (!file || !currentUser) return;
 
     setError(null);
 
@@ -187,7 +178,7 @@ const PaddyLiftingPage = ({ currentSeason, setCurrentSeason }: PaddyLiftingPageP
         
         if (userAgrees) {
             try {
-                const otherSeasonKey = `releaseOrders_${newOrder.uparjanVarsh}`;
+                const otherSeasonKey = `${currentUser}_releaseOrders_${newOrder.uparjanVarsh}`;
                 const savedOrdersRaw = localStorage.getItem(otherSeasonKey);
                 const savedOrders = savedOrdersRaw ? JSON.parse(savedOrdersRaw) : [];
                 
@@ -199,6 +190,16 @@ const PaddyLiftingPage = ({ currentSeason, setCurrentSeason }: PaddyLiftingPageP
                 }
                 
                 localStorage.setItem(otherSeasonKey, JSON.stringify(savedOrders));
+
+                // Update available seasons list globally
+                const keys = Object.keys(localStorage);
+                const seasonKeys = keys
+                    .filter(key => key.startsWith(`${currentUser}_releaseOrders_`))
+                    .map(key => key.replace(`${currentUser}_releaseOrders_`, ''));
+                const defaultSeasons = ['2024-2025', '2023-2024'];
+                const allSeasons = Array.from(new Set([...defaultSeasons, ...seasonKeys])).sort((a, b) => b.localeCompare(a));
+                setAvailableSeasons(allSeasons);
+                
                 setCurrentSeason(newOrder.uparjanVarsh);
                 showSuccessMessage(`Switched to season ${newOrder.uparjanVarsh} and saved RO ${newOrder.doNo}.`);
 
